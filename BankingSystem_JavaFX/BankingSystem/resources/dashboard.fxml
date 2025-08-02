@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox spacing="10" alignment="CENTER" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="DashboardController">
+    <Label text="Welcome to Your Bank" style="-fx-font-size: 18px;" />
+    <Button text="Deposit ₹100" onAction="#handleDeposit"/>
+    <Button text="Withdraw ₹50" onAction="#handleWithdraw"/>
+    <Button text="View Balance" onAction="#handleViewBalance"/>
+    <Button text="View Transactions" onAction="#handleViewTransactions"/>
+    <Label fx:id="statusLabel" style="-fx-font-weight: bold;" />
+</VBox>

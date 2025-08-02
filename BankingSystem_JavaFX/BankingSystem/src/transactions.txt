@@ -1,0 +1,17 @@
+Deposit of ₹1000.00 | Balance: ₹1000.00 | Time: Dummy
+Deposit of ₹100.0 | Balance: ₹1100.0 | Time: Tue Jul 01 23:32:28 EDT 2025
+Withdraw of ₹50.0 | Balance: ₹1050.0 | Time: Tue Jul 01 23:32:30 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1150.0 | Time: Wed Jul 02 00:35:17 EDT 2025
+Withdraw of ₹50.0 | Balance: ₹1100.0 | Time: Wed Jul 02 00:35:18 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1200.0 | Time: Wed Jul 02 00:44:57 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1300.0 | Time: Wed Jul 02 00:44:58 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1400.0 | Time: Wed Jul 02 00:45:16 EDT 2025
+Withdraw of ₹50.0 | Balance: ₹1350.0 | Time: Wed Jul 02 00:45:18 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1450.0 | Time: Wed Jul 02 00:45:22 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1550.0 | Time: Wed Jul 02 02:14:52 EDT 2025
+Withdraw of ₹50.0 | Balance: ₹1500.0 | Time: Wed Jul 02 02:14:53 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1600.0 | Time: Wed Jul 02 02:14:58 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1700.0 | Time: Wed Jul 02 02:14:59 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1800.0 | Time: Wed Jul 02 02:14:59 EDT 2025
+Deposit of ₹100.0 | Balance: ₹1900.0 | Time: Wed Jul 02 02:14:59 EDT 2025
+Deposit of ₹100.0 | Balance: ₹2000.0 | Time: Wed Jul 02 02:14:59 EDT 2025
