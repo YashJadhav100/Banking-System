@@ -1,113 +1,138 @@
 import streamlit as st
-from datetime import datetime
+import psycopg2
 from pdf_utils import generate_pdf
+from datetime import datetime
 
-st.set_page_config(page_title="ABC Bank", layout="centered")
-
-# ------------------ INIT DATA ------------------
-if "users" not in st.session_state:
-    st.session_state.users = {
-        "alice": {"balance": 1500, "txns": []},
-        "bob": {"balance": 1200, "txns": []},
-        "charlie": {"balance": 800, "txns": []},
-    }
-
-if "current_user" not in st.session_state:
-    st.session_state.current_user = None
-
-# ------------------ HEADER ------------------
-st.title("🏦 ABC Bank")
-st.caption("Banking System MVP (Streamlit Demo Version)")
-
-# ------------------ AUTH ------------------
-if st.session_state.current_user is None:
-    choice = st.radio("Select Action", ["Login", "Create User"])
-
-    username = st.text_input("Username").lower()
-
-    if st.button(choice):
-        if choice == "Login":
-            if username in st.session_state.users:
-                st.session_state.current_user = username
-                st.success("Login successful")
-                st.rerun()
-            else:
-                st.error("User not found")
-
-        else:
-            if username in st.session_state.users:
-                st.error("User already exists")
-            else:
-                st.session_state.users[username] = {
-                    "balance": 1000,
-                    "txns": []
-                }
-                st.success("User created with $1000 balance")
-
-    st.stop()
-
-# ------------------ DASHBOARD ------------------
-user = st.session_state.current_user
-data = st.session_state.users[user]
-
-st.subheader(f"Welcome, {user}")
-st.metric("Current Balance", f"${data['balance']}")
-
-st.divider()
-
-# ------------------ SEND MONEY ------------------
-st.subheader("💸 Send Money")
-
-recipients = [u for u in st.session_state.users if u != user]
-to_user = st.selectbox("Send to", recipients)
-amount = st.number_input("Amount", min_value=1)
-
-if st.button("Transfer"):
-    if data["balance"] >= amount:
-        data["balance"] -= amount
-        st.session_state.users[to_user]["balance"] += amount
-
-        txn = {
-            "from": user,
-            "to": to_user,
-            "amount": amount,
-            "time": datetime.now()
-        }
-
-        data["txns"].append(txn)
-        st.session_state.users[to_user]["txns"].append(txn)
-
-        st.success("Transfer successful")
-        st.rerun()
-    else:
-        st.error("Insufficient balance")
-
-st.divider()
-
-# ------------------ TRANSACTIONS ------------------
-st.subheader("📜 Transaction History")
-
-if data["txns"]:
-    st.table([
-        {
-            "From": t["from"],
-            "To": t["to"],
-            "Amount": f"${t['amount']}",
-            "Time": t["time"].strftime("%Y-%m-%d %H:%M")
-        } for t in data["txns"]
-    ])
-
-    pdf = generate_pdf(user, data["txns"])
-    st.download_button(
-        "📄 Download Statement (PDF)",
-        pdf,
-        file_name=f"{user}_statement.pdf"
+# -----------------------------
+# Database Connection
+# -----------------------------
+@st.cache_resource
+def get_connection():
+    return psycopg2.connect(
+        host=st.secrets["db"]["host"],
+        port=st.secrets["db"]["port"],
+        dbname=st.secrets["db"]["database"],
+        user=st.secrets["db"]["user"],
+        password=st.secrets["db"]["password"]
     )
-else:
-    st.info("No transactions yet")
 
-st.divider()
+conn = get_connection()
+cur = conn.cursor()
 
-if st.button("Logout"):
-    st.session_state.current_user = None
-    st.rerun()
+# -----------------------------
+# App UI
+# -----------------------------
+st.set_page_config(page_title="ABC Bank", layout="centered")
+st.title("🏦 ABC Bank – Banking System MVP")
+
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+menu = ["Login", "Create User"]
+choice = st.sidebar.selectbox("Menu", menu)
+
+# -----------------------------
+# Create User
+# -----------------------------
+if choice == "Create User":
+    st.subheader("Create New Account")
+
+    username = st.text_input("Username")
+    initial_balance = st.number_input("Initial Deposit", min_value=0.0, step=100.0)
+
+    if st.button("Create Account"):
+        cur.execute(
+            "INSERT INTO users (username, balance) VALUES (%s, %s)",
+            (username, initial_balance)
+        )
+        conn.commit()
+        st.success("Account created successfully")
+
+# -----------------------------
+# Login
+# -----------------------------
+if choice == "Login":
+    st.subheader("Login")
+
+    username = st.text_input("Enter username")
+
+    if st.button("Login"):
+        cur.execute(
+            "SELECT id, balance FROM users WHERE username=%s",
+            (username,)
+        )
+        result = cur.fetchone()
+
+        if result:
+            st.session_state.user = {
+                "id": result[0],
+                "username": username,
+                "balance": result[1]
+            }
+            st.success(f"Welcome {username}")
+        else:
+            st.error("User not found")
+
+# -----------------------------
+# Dashboard
+# -----------------------------
+if st.session_state.user:
+    st.divider()
+    st.subheader("Account Dashboard")
+
+    st.write(f"**User:** {st.session_state.user['username']}")
+    st.write(f"**Balance:** ${st.session_state.user['balance']}")
+
+    amount = st.number_input("Amount", min_value=0.0, step=50.0)
+    action = st.selectbox("Action", ["Deposit", "Withdraw"])
+
+    if st.button("Submit"):
+        if action == "Withdraw" and amount > st.session_state.user["balance"]:
+            st.error("Insufficient balance")
+        else:
+            new_balance = (
+                st.session_state.user["balance"] + amount
+                if action == "Deposit"
+                else st.session_state.user["balance"] - amount
+            )
+
+            cur.execute(
+                "UPDATE users SET balance=%s WHERE id=%s",
+                (new_balance, st.session_state.user["id"])
+            )
+
+            cur.execute(
+                "INSERT INTO transactions (user_id, amount, type, timestamp) VALUES (%s, %s, %s, %s)",
+                (
+                    st.session_state.user["id"],
+                    amount,
+                    action,
+                    datetime.now()
+                )
+            )
+
+            conn.commit()
+            st.session_state.user["balance"] = new_balance
+            st.success("Transaction successful")
+
+    # -----------------------------
+    # Download Statement
+    # -----------------------------
+    if st.button("Download Statement (PDF)"):
+        cur.execute(
+            "SELECT amount, type, timestamp FROM transactions WHERE user_id=%s",
+            (st.session_state.user["id"],)
+        )
+        transactions = cur.fetchall()
+
+        pdf_bytes = generate_pdf(
+            st.session_state.user["username"],
+            transactions
+        )
+
+        st.download_button(
+            "Download PDF",
+            data=pdf_bytes,
+            file_name="bank_statement.pdf",
+            mime="application/pdf"
+        )
