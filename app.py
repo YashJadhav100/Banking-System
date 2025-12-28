@@ -27,6 +27,19 @@ def init_db():
     )
     """)
 
+    # Pre-existing users
+    predefined_users = {
+        "alice": 5000,
+        "bob": 5000,
+        "charlie": 5000
+    }
+
+    for user, balance in predefined_users.items():
+        cur.execute(
+            "INSERT OR IGNORE INTO users (username, balance) VALUES (?, ?)",
+            (user, balance)
+        )
+
     conn.commit()
     conn.close()
 
@@ -49,7 +62,10 @@ def get_user(username):
 def update_balance(username, amount):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET balance = balance + ? WHERE username=?", (amount, username))
+    cur.execute(
+        "UPDATE users SET balance = balance + ? WHERE username=?",
+        (amount, username)
+    )
     conn.commit()
     conn.close()
 
@@ -108,6 +124,10 @@ if not st.session_state.user:
             else:
                 create_user(new_user)
                 st.success("Account created with ₹100 balance")
+
+    st.markdown("### 🧪 Demo Users")
+    st.write("You can login using:")
+    st.code("alice\nbob\ncharlie")
 
 # ---------------- DASHBOARD ---------------- #
 else:
