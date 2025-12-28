@@ -3,115 +3,87 @@ import psycopg2
 from pdf_utils import generate_pdf
 from datetime import datetime
 
-# -----------------------------
-# Database connection (Supabase)
-# -----------------------------
+st.set_page_config(page_title="ABC Bank", layout="centered")
+
+# ---------- DB CONNECTION ----------
 def get_connection():
     return psycopg2.connect(
         host=st.secrets["DB_HOST"],
         database=st.secrets["DB_NAME"],
         user=st.secrets["DB_USER"],
         password=st.secrets["DB_PASSWORD"],
-        port=st.secrets["DB_PORT"]
+        port=int(st.secrets["DB_PORT"])  # CRITICAL FIX
     )
 
-st.set_page_config(page_title="ABC Bank", layout="wide")
+# ---------- UI ----------
+st.title("🏦 ABC Bank")
 
-st.title("🏦 ABC Bank – Banking System MVP")
+username = st.text_input("Enter username")
 
-# -----------------------------
-# Login (simple username)
-# -----------------------------
-username = st.text_input("Enter your username")
+if username:
+    try:
+        conn = get_connection()
+        cur = conn.cursor()
 
-if not username:
-    st.stop()
+        # Check user
+        cur.execute("SELECT balance FROM users WHERE username = %s", (username,))
+        user = cur.fetchone()
 
-conn = get_connection()
-cur = conn.cursor()
+        if not user:
+            st.error("User not found")
+        else:
+            balance = user[0]
+            st.success(f"Welcome {username}")
+            st.metric("Balance", f"${balance}")
 
-# Ensure user exists
-cur.execute("""
-    INSERT INTO users (username, balance)
-    VALUES (%s, 1000)
-    ON CONFLICT (username) DO NOTHING
-""", (username,))
-conn.commit()
+            # SEND MONEY
+            st.subheader("💸 Send Money")
+            cur.execute("SELECT username FROM users WHERE username != %s", (username,))
+            users = [u[0] for u in cur.fetchall()]
+            recipient = st.selectbox("Send to", users)
+            amount = st.number_input("Amount", min_value=1)
 
-# -----------------------------
-# Fetch balance
-# -----------------------------
-cur.execute("SELECT balance FROM users WHERE username=%s", (username,))
-balance = cur.fetchone()[0]
+            if st.button("Send"):
+                cur.execute(
+                    "UPDATE users SET balance = balance - %s WHERE username = %s",
+                    (amount, username)
+                )
+                cur.execute(
+                    "UPDATE users SET balance = balance + %s WHERE username = %s",
+                    (amount, recipient)
+                )
+                cur.execute(
+                    "INSERT INTO transactions (from_user, to_user, amount, timestamp) VALUES (%s,%s,%s,%s)",
+                    (username, recipient, amount, datetime.now())
+                )
+                conn.commit()
+                st.success("Transfer successful")
+                st.experimental_rerun()
 
-st.metric("💰 Current Balance", f"${balance:.2f}")
+            # TRANSACTIONS
+            st.subheader("📜 Transaction History")
+            cur.execute("""
+                SELECT from_user, to_user, amount, timestamp
+                FROM transactions
+                WHERE from_user = %s OR to_user = %s
+                ORDER BY timestamp DESC
+            """, (username, username))
+            txns = cur.fetchall()
 
-# -----------------------------
-# Send money
-# -----------------------------
-st.subheader("💸 Send Money")
+            if txns:
+                st.table(txns)
 
-to_user = st.text_input("Send to user")
-amount = st.number_input("Amount", min_value=1.0, step=1.0)
+                if st.button("📄 Download Statement PDF"):
+                    pdf = generate_pdf(username, txns)
+                    st.download_button(
+                        "Download PDF",
+                        pdf,
+                        file_name=f"{username}_statement.pdf",
+                        mime="application/pdf"
+                    )
 
-if st.button("Send"):
-    cur.execute("SELECT balance FROM users WHERE username=%s", (username,))
-    sender_balance = cur.fetchone()[0]
+        cur.close()
+        conn.close()
 
-    if sender_balance < amount:
-        st.error("Insufficient balance")
-    else:
-        cur.execute("""
-            INSERT INTO users (username, balance)
-            VALUES (%s, 1000)
-            ON CONFLICT (username) DO NOTHING
-        """, (to_user,))
-
-        cur.execute(
-            "UPDATE users SET balance = balance - %s WHERE username=%s",
-            (amount, username)
-        )
-        cur.execute(
-            "UPDATE users SET balance = balance + %s WHERE username=%s",
-            (amount, to_user)
-        )
-
-        cur.execute("""
-            INSERT INTO transactions (from_user, to_user, amount, timestamp)
-            VALUES (%s, %s, %s, %s)
-        """, (username, to_user, amount, datetime.utcnow()))
-
-        conn.commit()
-        st.success("Transfer successful 🎉")
-        st.experimental_rerun()
-
-# -----------------------------
-# Transaction history
-# -----------------------------
-st.subheader("📜 Transaction History")
-
-cur.execute("""
-    SELECT from_user, to_user, amount, timestamp
-    FROM transactions
-    WHERE from_user=%s OR to_user=%s
-    ORDER BY timestamp DESC
-""", (username, username))
-
-transactions = cur.fetchall()
-
-st.table(transactions)
-
-# -----------------------------
-# Download PDF statement
-# -----------------------------
-if st.button("📄 Download Statement (PDF)"):
-    pdf_bytes = generate_pdf(username, transactions)
-    st.download_button(
-        label="Download PDF",
-        data=pdf_bytes,
-        file_name=f"{username}_statement.pdf",
-        mime="application/pdf"
-    )
-
-cur.close()
-conn.close()
+    except Exception as e:
+        st.error("Database connection error. Check Streamlit secrets.")
