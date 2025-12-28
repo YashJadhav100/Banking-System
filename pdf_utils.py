@@ -1,38 +1,29 @@
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import io
+from fpdf import FPDF
+from io import BytesIO
 
-def generate_statement(username, transactions):
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=letter)
-    width, height = letter
+def generate_pdf(username, transactions):
+    pdf = FPDF()
+    pdf.add_page()
 
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(50, height - 50, "ABC Bank")
-    pdf.setFont("Helvetica", 12)
-    pdf.drawString(50, height - 80, f"Account Statement for: {username}")
+    pdf.set_font("Arial", "B", 16)
+    pdf.cell(0, 10, "ABC Bank - Account Statement", ln=True)
 
-    y = height - 120
-    pdf.setFont("Helvetica", 10)
+    pdf.ln(5)
+    pdf.set_font("Arial", size=12)
+    pdf.cell(0, 10, f"User: {username}", ln=True)
+    pdf.ln(5)
 
-    pdf.drawString(50, y, "From")
-    pdf.drawString(150, y, "To")
-    pdf.drawString(250, y, "Amount")
-    pdf.drawString(330, y, "Date")
+    pdf.set_font("Arial", size=10)
+    for amount, txn_type, timestamp in transactions:
+        pdf.cell(
+            0,
+            8,
+            f"{timestamp} | {txn_type} | ${amount}",
+            ln=True
+        )
 
-    y -= 20
-
-    for tx in transactions:
-        pdf.drawString(50, y, tx[0] or "-")
-        pdf.drawString(150, y, tx[1] or "-")
-        pdf.drawString(250, y, f"${tx[2]}")
-        pdf.drawString(330, y, tx[3].strftime("%Y-%m-%d %H:%M"))
-        y -= 18
-
-        if y < 50:
-            pdf.showPage()
-            y = height - 50
-
-    pdf.save()
+    buffer = BytesIO()
+    pdf.output(buffer)
     buffer.seek(0)
-    return buffer
+
+    return buffer.getvalue()
