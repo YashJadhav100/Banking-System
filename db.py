@@ -2,8 +2,9 @@ import psycopg2
 
 def get_connection():
     return psycopg2.connect(
-        host="localhost",
-        database="banking_db",
-        user="postgres",
-        password="YASH"
+        host=("DB_HOST"),
+        database=("DB_NAME"),
+        user=("DB_USER"),
+        password=("DB_PASSWORD"),
+        port=("DB_PORT")
     )
