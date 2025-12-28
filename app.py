@@ -1,130 +1,114 @@
 import streamlit as st
-import psycopg2
-from contextlib import contextmanager
-from pdf_utils import generate_pdf
-from datetime import datetime
+from supabase import create_client
 
-st.set_page_config(page_title="ABC Bank", page_icon="🏦", layout="centered")
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="ABC Bank", layout="centered")
 
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
-@contextmanager
-def get_connection():
-    conn = psycopg2.connect(
-        host=st.secrets["DB_HOST"],
-        port=st.secrets["DB_PORT"],
-        dbname=st.secrets["DB_NAME"],
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASSWORD"],
-        sslmode="require"
-    )
-    try:
-        yield conn
-    finally:
-        conn.close()
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-
+# ---------------- DB HELPERS ----------------
 def get_user(username):
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT id, balance FROM users WHERE username=%s", (username,))
-        return cur.fetchone()
-
+    res = supabase.table("users").select("*").eq("username", username).execute()
+    return res.data[0] if res.data else None
 
 def create_user(username):
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO users (username, balance) VALUES (%s, %s) RETURNING id",
-            (username, 1000)
-        )
-        conn.commit()
-        return cur.fetchone()[0]
+    supabase.table("users").insert({
+        "username": username,
+        "balance": 1000
+    }).execute()
 
+def update_balance(username, new_balance):
+    supabase.table("users").update({
+        "balance": new_balance
+    }).eq("username", username).execute()
 
-def log_transaction(user_id, txn_type, amount):
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO transactions (user_id, type, amount, created_at) VALUES (%s,%s,%s,%s)",
-            (user_id, txn_type, amount, datetime.now())
-        )
-        conn.commit()
+def log_transaction(sender, receiver, amount):
+    supabase.table("transactions").insert({
+        "sender": sender,
+        "receiver": receiver,
+        "amount": amount
+    }).execute()
 
+def get_transactions(username):
+    res = supabase.table("transactions") \
+        .select("*") \
+        .or_(f"sender.eq.{username},receiver.eq.{username}") \
+        .order("created_at", desc=True) \
+        .execute()
+    return res.data
 
-def update_balance(user_id, amount):
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE users SET balance = balance + %s WHERE id=%s",
-            (amount, user_id)
-        )
-        conn.commit()
-
-
-def get_statement(user_id):
-    with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT type, amount, created_at FROM transactions WHERE user_id=%s ORDER BY created_at DESC",
-            (user_id,)
-        )
-        return cur.fetchall()
-
-
-# ---------------- UI ---------------- #
-
+# ---------------- UI ----------------
 st.title("🏦 ABC Bank")
 
 if "user" not in st.session_state:
     st.session_state.user = None
 
-choice = st.radio("Choose an option", ["Login", "Create Account"])
+menu = ["Login", "Create User"]
+choice = st.sidebar.selectbox("Menu", menu)
 
-username = st.text_input("Enter username")
+# -------- LOGIN --------
+if choice == "Login":
+    username = st.text_input("Enter username")
 
-if choice == "Create Account" and st.button("Create"):
-    if get_user(username):
-        st.error("User already exists")
-    else:
-        create_user(username)
-        st.success("Account created with $1000 balance")
+    if st.button("Login"):
+        user = get_user(username)
+        if user:
+            st.session_state.user = user
+            st.success(f"Welcome back, {username}")
+        else:
+            st.error("User not found")
 
-if choice == "Login" and st.button("Login"):
-    user = get_user(username)
-    if user:
-        st.session_state.user = (user[0], username, user[1])
-    else:
-        st.error("User not found")
+# -------- CREATE USER --------
+if choice == "Create User":
+    username = st.text_input("New username")
 
+    if st.button("Create"):
+        if get_user(username):
+            st.error("User already exists")
+        else:
+            create_user(username)
+            st.success("User created with ₹1000 balance")
+
+# -------- DASHBOARD --------
 if st.session_state.user:
-    user_id, uname, balance = st.session_state.user
-    st.success(f"Welcome {uname}")
-    st.metric("Balance", f"${balance}")
+    user = get_user(st.session_state.user["username"])
+    st.divider()
 
-    amount = st.number_input("Amount", min_value=1)
+    st.subheader(f"👤 {user['username']}")
+    st.metric("Balance", f"₹ {user['balance']}")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Deposit"):
-            update_balance(user_id, amount)
-            log_transaction(user_id, "DEPOSIT", amount)
+    # SEND MONEY
+    st.subheader("💸 Send Money")
+    to_user = st.text_input("Send to")
+    amount = st.number_input("Amount", min_value=1, step=1)
+
+    if st.button("Send"):
+        receiver = get_user(to_user)
+        if not receiver:
+            st.error("Receiver not found")
+        elif amount > user["balance"]:
+            st.error("Insufficient balance")
+        else:
+            update_balance(user["username"], user["balance"] - amount)
+            update_balance(to_user, receiver["balance"] + amount)
+            log_transaction(user["username"], to_user, amount)
+            st.success("Transfer successful")
             st.experimental_rerun()
 
-    with col2:
-        if st.button("Withdraw"):
-            if amount > balance:
-                st.error("Insufficient balance")
-            else:
-                update_balance(user_id, -amount)
-                log_transaction(user_id, "WITHDRAW", amount)
-                st.experimental_rerun()
+    # TRANSACTIONS
+    st.subheader("📄 Transactions")
+    txns = get_transactions(user["username"])
 
-    if st.button("Download Statement (PDF)"):
-        txns = get_statement(user_id)
-        pdf = generate_pdf(uname, txns)
-        st.download_button(
-            "Download PDF",
-            pdf,
-            file_name="statement.pdf",
-            mime="application/pdf"
-        )
+    if txns:
+        for t in txns:
+            direction = "⬅️ Received" if t["receiver"] == user["username"] else "➡️ Sent"
+            st.write(f"{direction} ₹{t['amount']} | {t['created_at']}")
+    else:
+        st.info("No transactions yet")
+
+    if st.button("Logout"):
+        st.session_state.user = None
+        st.experimental_rerun()
