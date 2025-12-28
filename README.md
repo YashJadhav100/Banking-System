@@ -1,153 +1,89 @@
-# 🏦 ABC Bank – Banking System MVP
+## 🏦 Banking System – Database Implementation Details
 
-A full-stack **Banking System MVP** built using **Python, Streamlit, and PostgreSQL** that simulates real-world banking operations including user creation, authentication, money transfers, balance tracking, transaction history, and downloadable PDF bank statements.
+This project was implemented using **two different database approaches**, depending on the execution environment. Both approaches are included in the repository to demonstrate **development vs deployment practices**.
 
-This project demonstrates **end-to-end application development**, database integration, and clean system design suitable for academic, portfolio, and interview use.
+## 🔹 1. Host Machine (Local Development – PostgreSQL)
 
-## 🚀 Features
+During development on the host machine (local system), the banking system was built using **PostgreSQL**.
 
-* 🔐 **User Authentication**
+### What was done locally:
 
-  * Login existing users
-  * Create new bank accounts
+* PostgreSQL was installed and configured on the host machine
+* A relational schema was created for:
 
-* 💰 **Account Management**
+  * Users
+  * Account balances
+  * Transaction history
+* All banking operations were implemented using PostgreSQL queries:
 
-  * View real-time account balance
-  * Receive and send money between users
+  * Create user
+  * Login
+  * Send money
+  * Receive money
+  * Check balance
+  * View transaction statements
+* Three demo users were created locally:
 
-* 🔁 **Money Transfer System**
+  * `alice`
+  * `bob`
+  * `charlie`
 
-  * Transfer funds to any existing user
-  * Automatic balance updates for sender and receiver
-  * Transaction logging with timestamps
-
-* 📄 **PDF Bank Statements**
-
-  * Download transaction history as a professionally formatted PDF
-  * Includes sender, receiver, amount, and date
-
-* 🧪 **Pre-Seeded Users**
-
-  * Comes with pre-created demo users (`alice`, `bob`, `charlie`) with initial balances for testing
-
----
-
-## 🛠️ Tech Stack
-
-| Layer           | Technology   |
-| --------------- | ------------ |
-| Frontend        | Streamlit    |
-| Backend         | Python       |
-| Database        | PostgreSQL   |
-| PDF Reports     | ReportLab    |
-| DB Driver       | psycopg2     |
-| Version Control | Git & GitHub |
-
----
-
-## 📂 Project Structure
+### Files related to local PostgreSQL setup:
 
 ```
-Banking-System/
-│
-├── app.py              # Streamlit UI & application logic
-├── db.py               # Database connection & queries
-├── schema.sql          # SQL schema + seed data
-├── requirements.txt    # Python dependencies
-├── .gitignore
-└── README.md
+schema.sql
+db.py
+app.py
 ```
 
-## 🗄️ Database Schema
+This version works correctly **only on the host machine**, as it depends on:
 
-The database includes:
+* A running PostgreSQL service
+* Local database credentials
+* Network access to the database
 
-* `users` table
-* `transactions` table
+## 🔹 2. Deployment Version (Streamlit Cloud – SQLite)
 
-All tables and seed users are defined in `schema.sql`.
+For deployment and public access, the application was **refactored to use SQLite**.
 
-⚠️ **Note:** The actual database is **not uploaded**.
+### Why this change was required:
 
-## ⚙️ Setup Instructions
+* Streamlit Cloud does not support persistent external databases
+* Database credentials and services cannot be bundled with the app
+* The project needs to run instantly for anyone viewing it online
 
-### 1️⃣ Clone the Repository
+### What was done for deployment:
 
-```bash
-git clone https://github.com/YashJadhav100/Banking-System.git
-cd Banking-System
-```
+* SQLite was used as an embedded database
+* The database is created automatically at runtime
+* Tables are initialized programmatically
+* Demo users (`alice`, `bob`, `charlie`) are inserted automatically if they do not exist
+* All banking features remain **identical** to the PostgreSQL version
 
-### 2️⃣ Install Dependencies
+### Features supported in the deployed version:
 
-```bash
-pip install -r requirements.txt
-```
+* Login
+* Send money
+* Receive money
+* Check balance
+* Transaction history
+* Preloaded demo users
 
-### 3️⃣ Setup PostgreSQL
+No external setup or database upload is required.
 
-* Create a PostgreSQL database (e.g. `banking_db`)
-* Run `schema.sql` in pgAdmin or psql to create tables and seed users
+## ✅ Final Setup Used in This Repository
 
-### 4️⃣ Configure Database Connection
+| Environment                      | Database   |
+| -------------------------------- | ---------- |
+| Host machine (local development) | PostgreSQL |
+| Streamlit Cloud (deployment)     | SQLite     |
 
-Update credentials inside `db.py`:
+Both implementations are intentionally included to show:
 
-```python
-dbname="banking_db"
-user="postgres"
-password="your_password"
-host="localhost"
-port="5432"
-```
+* Proper backend database design (PostgreSQL)
+* Practical cloud deployment adaptation (SQLite)
+* Real-world engineering decision-making
 
-### 5️⃣ Run the Application
+## 📌 Note
 
-```bash
-python -m streamlit run app.py
-```
-
-The app will be available at:
-
-```
-
-```
-
-## 🧑‍💻 Sample Users (Preloaded)
-
-| Username | Initial Balance |
-| -------- | --------------- |
-| alice    | $5000           |
-| bob      | $5000           |
-| charlie  | $5000           |
-
-You can also create new users directly from the UI.
-
-
-## 🎯 Learning Outcomes
-
-This project demonstrates:
-
-* Full-stack application design
-* Relational database modeling
-* Secure transaction handling
-* Real-time UI updates
-* PDF generation from database records
-* Clean separation of concerns (UI vs DB logic)
-
-## 📌 Future Improvements
-
-* Password-based authentication
-* Transaction notifications
-* Deployment on Streamlit Cloud
-* Role-based access control
-* API-based backend (FastAPI)
-
-## 👤 Author
-
-**Yash Jadhav**
-Graduate Student – Computer Science
-📍 Syracuse University
-🔗 [GitHub](https://github.com/YashJadhav100)
-🔗 [LinkedIn](https://www.linkedin.com/in/yashvjadhav)
+Since Streamlit Cloud does not allow uploading or managing external databases, the **SQLite-based implementation is used for the live deployed app**, while the **PostgreSQL implementation reflects the original full backend design used during development**.
