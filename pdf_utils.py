@@ -1,29 +1,17 @@
 from fpdf import FPDF
-from io import BytesIO
 
 def generate_pdf(username, transactions):
     pdf = FPDF()
     pdf.add_page()
 
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "ABC Bank - Account Statement", ln=True)
+    pdf.cell(0, 10, f"Bank Statement – {username}", ln=True)
 
-    pdf.ln(5)
     pdf.set_font("Arial", size=12)
-    pdf.cell(0, 10, f"User: {username}", ln=True)
     pdf.ln(5)
 
-    pdf.set_font("Arial", size=10)
-    for amount, txn_type, timestamp in transactions:
-        pdf.cell(
-            0,
-            8,
-            f"{timestamp} | {txn_type} | ${amount}",
-            ln=True
-        )
+    for tx in transactions:
+        line = f"From: {tx[0]} | To: {tx[1]} | ${tx[2]} | {tx[3]}"
+        pdf.multi_cell(0, 8, line)
 
-    buffer = BytesIO()
-    pdf.output(buffer)
-    buffer.seek(0)
-
-    return buffer.getvalue()
+    return pdf.output(dest="S").encode("latin-1")
