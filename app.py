@@ -1,159 +1,113 @@
 import streamlit as st
-from db import get_connection
 from datetime import datetime
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
-import tempfile
+from pdf_utils import generate_pdf
 
 st.set_page_config(page_title="ABC Bank", layout="centered")
 
-# ---------- DB CONNECTION ----------
-conn = get_connection()
-demo_mode = conn is None
+# ------------------ INIT DATA ------------------
+if "users" not in st.session_state:
+    st.session_state.users = {
+        "alice": {"balance": 1500, "txns": []},
+        "bob": {"balance": 1200, "txns": []},
+        "charlie": {"balance": 800, "txns": []},
+    }
 
-# ---------- DEMO DATA ----------
-DEMO_USERS = {
-    "alice": 5000,
-    "bob": 5000,
-    "charlie": 5000
-}
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
 
-DEMO_TRANSACTIONS = []
-
-# ---------- HELPERS ----------
-def fetch_users():
-    if demo_mode:
-        return list(DEMO_USERS.keys())
-    cur = conn.cursor()
-    cur.execute("SELECT username FROM users")
-    users = [row[0] for row in cur.fetchall()]
-    cur.close()
-    return users
-
-def get_balance(username):
-    if demo_mode:
-        return DEMO_USERS.get(username, 0)
-    cur = conn.cursor()
-    cur.execute("SELECT balance FROM users WHERE username=%s", (username,))
-    res = cur.fetchone()
-    cur.close()
-    return res[0] if res else 0
-
-def send_money(sender, receiver, amount):
-    if demo_mode:
-        DEMO_USERS[sender] -= amount
-        DEMO_USERS[receiver] += amount
-        DEMO_TRANSACTIONS.append(
-            (sender, receiver, amount, datetime.now())
-        )
-        return
-
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET balance = balance - %s WHERE username=%s", (amount, sender))
-    cur.execute("UPDATE users SET balance = balance + %s WHERE username=%s", (amount, receiver))
-    cur.execute(
-        "INSERT INTO transactions (from_user, to_user, amount) VALUES (%s,%s,%s)",
-        (sender, receiver, amount)
-    )
-    conn.commit()
-    cur.close()
-
-def fetch_transactions(username):
-    if demo_mode:
-        return [t for t in DEMO_TRANSACTIONS if t[0] == username or t[1] == username]
-
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT from_user, to_user, amount, timestamp
-        FROM transactions
-        WHERE from_user=%s OR to_user=%s
-        ORDER BY timestamp DESC
-    """, (username, username))
-    rows = cur.fetchall()
-    cur.close()
-    return rows
-
-def generate_pdf(username, transactions):
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
-    pdf = canvas.Canvas(tmp.name, pagesize=letter)
-    pdf.setFont("Helvetica", 10)
-
-    pdf.drawString(50, 750, f"ABC Bank - Statement for {username}")
-    y = 720
-
-    for t in transactions:
-        pdf.drawString(50, y, f"{t[3]} | {t[0]} → {t[1]} | ${t[2]}")
-        y -= 20
-        if y < 50:
-            pdf.showPage()
-            y = 750
-
-    pdf.save()
-    return tmp.name
-
-# ---------- UI ----------
+# ------------------ HEADER ------------------
 st.title("🏦 ABC Bank")
+st.caption("Banking System MVP (Streamlit Demo Version)")
 
-if demo_mode:
-    st.warning("Running in demo mode (database not connected).")
+# ------------------ AUTH ------------------
+if st.session_state.current_user is None:
+    choice = st.radio("Select Action", ["Login", "Create User"])
 
-auth_option = st.radio("Choose action", ["Login", "Create User"])
+    username = st.text_input("Username").lower()
 
-if auth_option == "Create User":
-    new_user = st.text_input("Choose username")
-    if st.button("Create"):
-        if demo_mode:
-            DEMO_USERS[new_user] = 1000
-            st.success("User created (demo)")
-        else:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO users (username, balance) VALUES (%s, 1000)", (new_user,))
-            conn.commit()
-            cur.close()
-            st.success("User created")
-
-else:
-    username = st.text_input("Enter username")
-    if st.button("Login"):
-        users = fetch_users()
-        if username not in users:
-            st.error("User not found")
-            st.stop()
-
-        balance = get_balance(username)
-        st.success(f"Welcome {username}")
-        st.metric("Balance", f"${balance}")
-
-        st.divider()
-        st.subheader("💸 Send Money")
-
-        receivers = [u for u in fetch_users() if u != username]
-        to_user = st.selectbox("Send to", receivers)
-        amount = st.number_input("Amount", min_value=1)
-
-        if st.button("Send"):
-            if amount > balance:
-                st.error("Insufficient balance")
+    if st.button(choice):
+        if choice == "Login":
+            if username in st.session_state.users:
+                st.session_state.current_user = username
+                st.success("Login successful")
+                st.rerun()
             else:
-                send_money(username, to_user, amount)
-                st.success("Transaction successful")
+                st.error("User not found")
 
-        st.divider()
-        st.subheader("📜 Transaction History")
-
-        txns = fetch_transactions(username)
-        if txns:
-            for t in txns:
-                st.write(f"{t[3]} | {t[0]} → {t[1]} | ${t[2]}")
         else:
-            st.info("No transactions")
+            if username in st.session_state.users:
+                st.error("User already exists")
+            else:
+                st.session_state.users[username] = {
+                    "balance": 1000,
+                    "txns": []
+                }
+                st.success("User created with $1000 balance")
 
-        if st.button("📄 Download PDF Statement"):
-            pdf_path = generate_pdf(username, txns)
-            with open(pdf_path, "rb") as f:
-                st.download_button(
-                    label="Download Statement",
-                    data=f,
-                    file_name="statement.pdf",
-                    mime="application/pdf"
-                )
+    st.stop()
+
+# ------------------ DASHBOARD ------------------
+user = st.session_state.current_user
+data = st.session_state.users[user]
+
+st.subheader(f"Welcome, {user}")
+st.metric("Current Balance", f"${data['balance']}")
+
+st.divider()
+
+# ------------------ SEND MONEY ------------------
+st.subheader("💸 Send Money")
+
+recipients = [u for u in st.session_state.users if u != user]
+to_user = st.selectbox("Send to", recipients)
+amount = st.number_input("Amount", min_value=1)
+
+if st.button("Transfer"):
+    if data["balance"] >= amount:
+        data["balance"] -= amount
+        st.session_state.users[to_user]["balance"] += amount
+
+        txn = {
+            "from": user,
+            "to": to_user,
+            "amount": amount,
+            "time": datetime.now()
+        }
+
+        data["txns"].append(txn)
+        st.session_state.users[to_user]["txns"].append(txn)
+
+        st.success("Transfer successful")
+        st.rerun()
+    else:
+        st.error("Insufficient balance")
+
+st.divider()
+
+# ------------------ TRANSACTIONS ------------------
+st.subheader("📜 Transaction History")
+
+if data["txns"]:
+    st.table([
+        {
+            "From": t["from"],
+            "To": t["to"],
+            "Amount": f"${t['amount']}",
+            "Time": t["time"].strftime("%Y-%m-%d %H:%M")
+        } for t in data["txns"]
+    ])
+
+    pdf = generate_pdf(user, data["txns"])
+    st.download_button(
+        "📄 Download Statement (PDF)",
+        pdf,
+        file_name=f"{user}_statement.pdf"
+    )
+else:
+    st.info("No transactions yet")
+
+st.divider()
+
+if st.button("Logout"):
+    st.session_state.current_user = None
+    st.rerun()
