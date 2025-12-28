@@ -5,14 +5,12 @@ def generate_pdf(username, transactions):
     pdf.add_page()
     pdf.set_font("Arial", size=12)
 
-    pdf.cell(200, 10, txt=f"Bank Statement for {username}", ln=True)
+    pdf.cell(200, 10, txt=f"ABC Bank Statement - {username}", ln=True)
+
+    pdf.ln(5)
 
     for t in transactions:
-        pdf.cell(
-            200,
-            10,
-            txt=f"{t[3]} | {t[0]} → {t[1]} | ${t[2]}",
-            ln=True
-        )
+        line = f"{t['created_at']} | {t['sender']} → {t['receiver']} | ${t['amount']}"
+        pdf.multi_cell(0, 8, line)
 
     return pdf.output(dest="S").encode("latin-1")
